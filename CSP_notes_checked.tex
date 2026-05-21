@@ -1,0 +1,917 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[UTF8,scheme=plain]{ctex}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{bm}
+\usepackage{mathtools}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    citecolor=blue!60!black,
+    urlcolor=blue!60!black
+}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\Jg}{J_{\!g}}
+\newcommand{\diff}[2]{\dfrac{d #1}{d #2}}
+\newcommand{\pdiff}[2]{\dfrac{\partial #1}{\partial #2}}
+\newcommand{\rmd}{\mathrm{d}}
+\DeclareMathOperator{\Span}{Span}
+\DeclareMathOperator{\Tr}{Tr}
+\DeclareMathOperator{\Real}{Re}
+\DeclareMathOperator{\Imag}{Im}
+\DeclareMathOperator{\sign}{sign}
+
+\title{\bfseries CSP 与 TSR 方法学习笔记}
+\author{李子臻}
+\date{2026 年 5 月}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+本文基于课程学习手记,系统梳理\textbf{计算奇异摄动(Computational Singular Perturbation, CSP)}与\textbf{切向应变率(Tangential Stretching Rate, TSR)}方法的基本框架。重点包括:动力学系统的切空间分解、快慢模态分离、线性与非线性情形下基矢的构造与更新、Jordan 标准型与复特征值的处理、TSR 的 Rayleigh 商表达、PDE 形式下传输与化学的耦合,以及四类参与度指数(TPI, API, S/FII, TSR-PI)用于辨识活跃模式、反应路径与时间尺度的主导机理。
+\end{abstract}
+
+\tableofcontents
+\vspace{0.5em}\hrule\vspace{1em}
+
+%========================================================
+\section{CSP \& TSR 基本概念}
+
+\subsection{研究背景与适用范围}
+
+CSP / TSR 方法主要适用于以下燃烧场景:
+\begin{itemize}[leftmargin=2em]
+    \item \textbf{Auto-ignition system}:无外部点火源,在临界温度、压力下自发着火,关注点火延迟时间 IDT 与热释放 $Q$,常以 $f(c,T,\dots)$ 形式给出;
+    \item \textbf{Laminar \& turbulent premixed flames}:层流、湍流预混火焰;
+    \item \textbf{Diffusion-jet flames}:高速流体进入静止或伴流环境,湍流卷吸加速 $F/O$ 混合。
+\end{itemize}
+
+CFD 求解的总量级估计为
+\begin{equation}
+N_{CFD}\sim N_{FV}\times N_{SV}\times N_{ITS},
+\end{equation}
+其中$N_{FV}$代表有限体积方法的网格，$N_{SV}$是状态变量数目，$N_{ITS}$是时间步迭代。
+然而真正描述系统所必需的本质自由度 $N_{essential}\ll N_{CFD}$。快速过程将系统约束在低维流形上,只用 $N_{essential}$ 个变量即可描述。\textbf{CSP} 用于辨识这一低维空间,\textbf{TSR} 用于全面刻画慢流形上相邻的轨迹时间尺度($\text{TSR}\uparrow$ 着火,$\text{TSR}\downarrow$ 稳态、熄灭)。
+
+\subsection{空间均匀动力学系统描述}
+
+考虑空间均匀情形的常微分系统
+\begin{equation}
+	\diff{\vec z(t)}{t}=\vec g(\vec z(t)),\quad
+	\vec z\in\R^N,\quad \vec z=[T,P,\rho,w_k,\dots]^{\mathrm T}.
+\end{equation}
+
+$\vec g(\vec z(t))$为化学源项。引入切空间 $T_{\vec z}$ 上的右基矢矩阵 $A$ 与对偶左基矢矩阵 $B$:
+\begin{equation}
+A=\{\vec a_i\}_{i=1,\dots,N}\in\R^{N\times N},\qquad
+B=\{\vec b^{\,i}\}_{i=1,\dots,N},\qquad
+AB=BA=I,\quad \vec b^{\,i}\in T^*_{\vec z}.
+\end{equation}
+
+$T^*_{\vec z}$代表余切空间。
+其中，关于空间维数问题：
+\begin{equation}
+	|\mathcal{M}|=|\,T_{\vec z}\,|=N, \qquad
+	\vec z\in \mathcal{M}
+\end{equation}
+向量场的基矢展开与标量振幅:
+\begin{equation}
+\vec g(\vec z(t))=A\cdot B\cdot \vec g=\sum_{i=1}^{N}\vec a_i(\vec z)\,f^{\,i}(\vec z) \in T_{\vec z},\qquad
+\boxed{\,f^{\,i}(\vec z)=\vec b^{\,i}\cdot\vec g(\vec z)\in\R^N\,} \quad(\text{抽象振幅空间}).
+\end{equation}
+
+对振幅求时间导数,记 $\Jg(\vec z)=\partial\vec g/\partial\vec z$,又已知$\diff{\vec z}{t}=\vec g$:
+\begin{align}
+\diff{f^{\,i}}{t}
+&=\diff{\vec b^{\,i}}{t}\cdot\vec g+\vec b^{\,i}\cdot\diff{\vec g}{t}
+ =\diff{\vec b^{\,i}}{t}\cdot\vec g+\vec b^{\,i}\cdot\Jg\cdot\diff{\vec z}{t} \nonumber\\
+&=(\diff{\vec b_i}{t} + \vec b_i \cdot \Jg)\cdot \vec g \nonumber\\
+&=\sum_{k=1}^{N}f^{\,k}(\vec z)\Big[\underbrace{\diff{\vec b^{\,i}}{t}\cdot\vec a_k}_{\text{参考系旋转补偿}}
+   +\underbrace{\vec b^{\,i}\cdot\Jg\cdot\vec a_k}_{\text{动力学源项}}\Big]
+   \label{模式微分}
+\end{align}
+
+在动力学源项中，$\Jg$包含状态变量$\vec z$之间的转化关系，$\diff{f_i}{t}$为振幅变化率。
+我们假设模式$f_i$存在一个特征时间尺度$\tau_i$，满足关系式：
+\[\tau^i<\cdots<\tau^M<<\tau^{M+1}<\cdots<\tau^N
+\]
+对于$\le \tau^M$模态，可以认为是耗散的，因此有：
+\begin{equation}
+	\diff{\vec z}{t}=\sum_{r=1}^{M}\vec a_r f^{\,r}+\sum_{s=M+1}^{N}\vec a_s f^{\,s},
+	\qquad\text{(快慢切空间分离)}.
+\end{equation}
+\subsection{线性系统:完全解耦}
+此时右基矢$\vec a_i$之间是完全解耦的。
+当 $\vec g=C\vec z$ 时,$\Jg=C$ 与 $\vec z$ 无关,故 $\dot{\overrightarrow{b^i}}=\vec 0$。设
+\begin{equation}
+C\vec v_k=\lambda_k\vec v_k,\qquad \vec u^{\,k}C=\lambda_k\vec u^{\,k},\qquad
+\vec u^{\,k}\cdot\vec v_j=\delta^{k}_{\;j},
+\end{equation}
+取 $\vec a_k=\vec v_k,\ \vec b^{\,k}=\vec u^{\,k}$,即$\vec a_k$为C的右特征向量，$\vec b^k$为左特征向量。
+则 $C=A\Lambda B$,$\Lambda=\mathrm{diag}\{\lambda_i\}$。有
+\[
+\Jg=A\cdot \Lambda\cdot A^{-1} ,\quad B=A^{-1},\quad \Jg\cdot A=A\cdot \Lambda,\quad B\cdot \Jg=\Lambda \cdot B
+\]
+因为C是常数矩阵，C与$\vec z$无关，故$\diff{\vec b^i}{t}$，有：
+\begin{equation}
+	f^i=\vec b^i\cdot \vec g=\vec b^i\cdot C \cdot \vec z=\lambda_i\vec b^i\cdot \vec z
+\end{equation}
+根据~\eqref{模式微分}可知：
+\[\diff{f^i}{t}=\lambda_i\vec b^i\cdot \vec z
+\]
+即
+\begin{equation}
+\boxed{\;
+\diff{f^{\,i}}{t}=\lambda_i f^{\,i}\;\Longrightarrow\;f^{\,i}(t)=f^{\,i}(0)e^{\lambda_i t},\quad
+\tau_i\sim\frac{1}{\Real(\lambda_i)}\;}
+\end{equation}
+
+按特征值模长排序得快慢分离:
+\begin{equation}
+\underbrace{|\lambda_1|>\cdots>|\lambda_M|}_{\text{fast mode}}\;\gg\;
+\underbrace{|\lambda_{M+1}|>\cdots>|\lambda_N|}_{\text{slow mode}},
+\end{equation}
+快模耗散后系统被约束到慢流形(dissipative $\Rightarrow$ lead to equilibrium)。进一步，我们可以构建投影矩阵。
+
+定义第 \(i\) 个模态的投影算子为
+\[
+\bm Q_i=\bm a_i\bm b^i .
+\]
+则
+\[
+\bm g_i=\bm Q_i\bm g=\bm a_i f^i
+\]
+表示向量场 \(\bm g\) 在第 \(i\) 个 CSP 模态方向上的切向贡献。由于
+\[
+\bm Q_i^2=\bm Q_i,\qquad
+\bm Q_i\bm Q_j=\bm 0\ (i\neq j),\qquad
+\sum_{i=1}^{N}\bm Q_i=I ,
+\]
+
+对于线性系统 \(\dot{\bm z}=J\bm z\)，若 \(J\) 可对角化并满足
+\[
+J=A\Lambda B,
+\]
+则有谱分解
+\[
+J=\sum_{i=1}^{N}\lambda_i\bm Q_i .
+\]
+其中 \(\lambda_i\) 表征第 \(i\) 个模态的增长、衰减或振荡时间尺度，
+而 \(\bm Q_i\) 表征该模态在切空间各坐标方向上的投影结构。两者结合可用于判断：
+某一状态坐标方向主要参与的是快模态、慢模态、爆炸模态还是耗散模态。
+
+\subsection{复特征值与实基矢}
+
+若 $J\in\C$,共轭对 $\lambda_c,\lambda_{c+1}=\alpha\pm i\beta$,左右特征向量同样成对:
+\begin{equation}
+(\lambda_c,\lambda_{c+1})\leftrightarrow(\vec V_c,\vec V_{c+1})\in\C
+\leftrightarrow(\vec a_c,\vec a_{c+1})\in\R.
+\end{equation}
+取 $\vec V_c=\vec p+i\vec q,\ \vec V_{c+1}=\vec p-i\vec q$,并定义
+\[
+\vec a_c:=\Real(\vec V_c)=\vec p,\qquad \vec a_{c+1}:=-\Imag(\vec V_c)=-\vec q.
+\]
+根据线性代数的知识：
+\[
+\mathcal{S}\mathrm{pan}(\vec V_c,\ \vec V_{c+1})=\mathcal{S}\mathrm{pan}(\vec a_c,\ \vec a_{c+1})
+\]
+由 $C\vec V_c=\lambda_c\vec V_c$ 得 $C\vec p=\alpha\vec p-\beta\vec q,\ C\vec q=\beta\vec p+\alpha\vec q$,对应实形式:
+\begin{equation}
+C(\vec a_c,\vec a_{c+1})=(\vec a_c,\vec a_{c+1})
+\begin{pmatrix}\alpha & -\beta\\ \beta & \alpha\end{pmatrix},
+\quad
+M\triangleq
+\begin{pmatrix}\Real\lambda_c & \Imag\lambda_c\\ -\Imag\lambda_c & \Real\lambda_c\end{pmatrix}
+=\begin{pmatrix}\alpha & -\beta\\ \beta & \alpha\end{pmatrix}.
+\end{equation}
+
+故振幅满足
+\begin{equation}
+\diff{}{t}\begin{pmatrix}f^{\,c}\\ f^{\,c+1}\end{pmatrix}
+=M^{\mathrm T}\begin{pmatrix}f^{\,c}\\ f^{\,c+1}\end{pmatrix},\quad
+\begin{pmatrix}f^{\,c}(t)\\ f^{\,c+1}(t)\end{pmatrix}
+=e^{\alpha t}
+\begin{pmatrix}\cos\beta t & \sin\beta t\\ -\sin\beta t & \cos\beta t\end{pmatrix}
+\begin{pmatrix}f^{\,c}(0)\\ f^{\,c+1}(0)\end{pmatrix}.
+\end{equation}
+其中 $M^{\mathrm T}$ 为旋转矩阵:$\alpha<0$ 为衰减振荡的向心螺线,$\alpha=0$ 为圆周纯振荡。
+\begin{equation}
+	\vec f(t)=e^{\Lambda t}\vec f(0)
+	\label{矩阵振幅方程}
+\end{equation}
+
+\subsection{Jordan 标准型(重根情形)}
+
+当几何重数 $m_g$ 与代数重数 $m_a$ 不等时使用 Jordan 块。
+\begin{enumerate}[label=(\arabic*)]
+\item \textbf{Semisimple}:$m_g=m_a$,完全解耦,与单根情形一致。
+\item \textbf{Defective}:$m_g<m_a$,设 $\lambda_l=\lambda_{l+1}=\dots=\lambda_{l+r}$,Jordan 块为
+\begin{equation}
+\Lambda_l=\begin{pmatrix}\lambda & 1 & & 0\\ & \lambda & \ddots & \\ & & \ddots & 1\\ 0 & & & \lambda\end{pmatrix}_{(r+1)\times(r+1)}.
+\end{equation}
+\end{enumerate}
+
+Jordan 链:
+\begin{align}
+	C\vec a_l&=\lambda\vec a_l,\nonumber\\
+	C\vec a_{l+k}&=\lambda\vec a_{l+k}+\vec a_{l+k-1}\nonumber\\
+	\vdots & \nonumber\\
+	C\vec a_{l+r}&=\lambda\vec a_{l+r}+\vec a_{l+r-1}
+\end{align}
+相似的，左广义特征向量 $\vec b^{l},\dots,\vec b^{l+r}$ 构成反向链,且 $\vec b^{\,i}\vec a_j=\delta^{i}_{\;j}$ 仍然成立。
+对于$k=l,\cdots, l+r$,有矩阵方程：
+\begin{equation}
+	\diff{}{t}\begin{pmatrix}f^{\,l}\\\vdots\\ f^{\,l+r}\end{pmatrix}=\Lambda_l\begin{pmatrix}f^{\,l}\\\vdots \\f^{\,l+r}\end{pmatrix}
+\end{equation}
+
+块内通解:
+\begin{equation}
+f^{\,l+r-j}(t)=e^{\lambda t}\sum_{s=0}^{j}\frac{t^{s}}{s!}\,f^{\,l+r-j+s}(0).
+\end{equation}
+块内互相耦合,$\Real(\lambda)<0$ 时数学上稳定,但可能短暂出现倾斜放大;Jordan 链长度 $r$ 影响流形约化粒度——\textbf{只能整块约化}。
+
+\subsection{非线性系统:CSP 优化算法}
+
+\subsubsection*{非线性带来的根本困难}
+
+线性情形 $\vec g=C\vec z$,Jacobian $\Jg=C$ 是常矩阵,特征结构不随时间变化:一次特征分解 $\Rightarrow$ 模式按 $\lambda_k$ 严格解耦。非线性情形下
+\begin{equation}
+\vec g=\vec g(\vec z(t)),\qquad \Jg(\vec z)=\pdiff{\vec g}{\vec z},
+\end{equation}
+随轨迹 $\vec z(t)$ 变化。即便在每一时刻取 $\Jg(\vec z(t))$ 的瞬时特征向量作基矢 $\{\vec a_i(t)\}$,这组基本身随时间转动,导致两个新问题:
+\begin{enumerate}[label=(\roman*),leftmargin=2em]
+\item 基矢自身有运动:$\dot{\vec a}_i\neq 0,\ \dot{\overrightarrow {b^{i}}}\neq 0$;
+\item 模式不再自动解耦:瞬时谱分解仅在线性化层面解耦,非线性高阶效应造成模式间残余耦合。
+\end{enumerate}
+
+\subsubsection*{耦合矩阵 $\Lambda^{i}_{\;j}$ 的真面目}
+
+振幅 $f^{\,i}=\vec b^{\,i}\cdot\vec g$ 对时间求导,使用链式法则:
+\begin{align}
+\dot f^{\,i}&=\overline{\vec b^{\,i}\cdot\vec g}=\diff{\vec b^{\,i}}{t}\cdot\vec g+\vec b^{\,i}\cdot\diff{\vec g}{t}=\diff{\vec b^{\,i}}{t}\cdot\vec g+\vec b^{\,i}\cdot\Jg\cdot\diff{\vec z}{t}\nonumber\\
+&=\Big(\diff{\vec b^{\,i}}{t}+\vec b^{\,i}\cdot\Jg\Big)\cdot\vec g=\sum_{k=1}^{N}f^{\,k}(\vec z)\Lambda^{i}_{\;k}.
+\end{align}
+其中耦合矩阵
+\begin{equation}
+\Lambda^{i}_{\;j}=\Big(\diff{\vec b^{\,i}}{t}+\vec b^{\,i}\cdot\Jg\Big)\cdot \vec a_j=\underbrace{\vec b^{\,i}\cdot\Jg\cdot\vec a_j}_{\text{动力学源项}}+\underbrace{\dot{\vec b}^{\,i}\cdot\vec a_j}_{\text{旋转补偿项}}.
+\end{equation}
+两部分分别承载:
+\begin{itemize}[leftmargin=2em]
+\item \textbf{动力学源项} $\vec b^{\,i}\cdot\Jg\cdot\vec a_j$:瞬时特征结构对耦合的贡献。若 $\vec a_j$ 恰好是 $\Jg$ 的瞬时右特征向量,则
+\begin{equation}
+\vec b^{\,i}\cdot\Jg\cdot\vec a_j=\lambda_j(\vec b^{\,i}\cdot\vec a_j)=\lambda_j\delta^{i}_{\;j},
+\end{equation}
+即"瞬时复现"线性情形的对角化。
+\item \textbf{旋转补偿项} $\dot{\vec b}^{\,i}\cdot\vec a_j$:\textbf{非线性独有}。度量左基矢相对右基矢的"转动速率"。线性情形 $\dot{\vec b}^{\,i}=0$ 此项消失;非线性下 $\Jg(\vec z(t))$ 随轨迹变,$\vec b^{\,i}(t)$ 跟着转,此项把"基矢转动"引入到模式动力学。
+\end{itemize}
+非对角项的量级估计:
+\begin{equation}
+\|\Lambda^{r}_{\;s}\|\sim\frac{O(1)}{\mathrm{sep}(\Lambda^{r}_{\;r},\Lambda^{s}_{\;s})}\sim O(\varepsilon).
+\end{equation}
+
+\subsubsection*{快慢分块结构}
+
+把模式按快/慢分组:快模式 $f^{\,r}$ 共 $M$ 个($|\lambda|$ 大),慢模式 $f^{\,s}$ 共 $N-M$ 个($|\lambda|$ 小)。$\Lambda$ 相应分块演化:
+\begin{equation}
+\diff{}{t}\begin{pmatrix}f^{\,s}\\ f^{\,r}\end{pmatrix}
+=\begin{pmatrix}\Lambda^{s}_{\;s} & \Lambda^{s}_{\;r}\sim O(\varepsilon)\\
+\Lambda^{r}_{\;s}\sim O(\varepsilon) & \Lambda^{r}_{\;r}\end{pmatrix}
+\begin{pmatrix}f^{\,s}\\ f^{\,r}\end{pmatrix}.
+\end{equation}
+四个分块的维数与含义:
+\begin{align}
+\Lambda^{s}_{\;s}&\in\R^{(N-M)\times(N-M)}:\ \text{慢模式内部耦合},\\
+\Lambda^{r}_{\;r}&\in\R^{M\times M}:\ \text{快模式内部耦合},\\
+\Lambda^{s}_{\;r}&\in\R^{(N-M)\times M}:\ \text{\textbf{快模式驱动慢模式}},\\
+\Lambda^{r}_{\;s}&\in\R^{M\times(N-M)}:\ \text{\textbf{慢模式驱动快模式}}.
+\end{align}
+\textbf{对角块} $\Lambda^{r}_{\;r}, \Lambda^{s}_{\;s}$ 不必很小,刻画各自模式群内部的动力学;\textbf{反对角块} $\Lambda^{s}_{\;r}, \Lambda^{r}_{\;s}$ 衡量快慢之间的串话——若两者皆零则系统严格解耦,慢流形约化无需任何近似。非线性下二者一般非零但希望小:
+\begin{equation}
+\Lambda^{s}_{\;r}\sim O(\varepsilon),\qquad \Lambda^{r}_{\;s}\sim O(\varepsilon),\qquad \varepsilon\sim\frac{|\lambda_M|^{-1}}{|\lambda_{M+1}|^{-1}}.
+\end{equation}
+此时 $f^{\,r}$ 可取准稳态近似(QSSA),用慢方程
+\begin{equation}
+\diff{f^{\,s}}{t}\approx\Lambda^{s}_{\;s}f^{\,s}
+\end{equation}
+近似演化,精度 $O(\varepsilon)$。线性情形 $\Lambda^{s}_{\;r}=\Lambda^{r}_{\;s}=0$(对角分块,与 Jordan 标准型一致)。
+
+\subsubsection*{CSP 优化:两步精化的整体思路}
+
+零阶基取 $\Jg(\vec z(t))$ 的瞬时特征向量时,由于 $\dot{\vec b}^{\,i}$ 项存在,$\Lambda^{s}_{\;r}, \Lambda^{r}_{\;s}$ 一般是 $O(1)$。CSP 通过两步精化迭代地把它们压到 $O(\varepsilon)$:
+\begin{itemize}[leftmargin=2em]
+\item \textbf{第一步}:调右基 $\vec a_r\to\vec a_r+\tau\vec a_s$,压右上块 $\Lambda^{s}_{\;r}$ 至 $O(\varepsilon)$;
+\item \textbf{第二步}:调左基 $\vec b^{\,r}\to\vec b^{\,r}+\sigma\vec b^{\,s}$,压左下块 $\Lambda^{r}_{\;s}$ 至 $O(\varepsilon)$。
+\end{itemize}
+\textbf{为何必须两步、不可合并}:双正交约束 $\vec b^{\,i}\cdot\vec a_j=\delta^{i}_{\;j}$ 消去一半自由度,要同时消两个反对角块($2M(N-M)$ 个条件)需解非线性方程,无封闭解。两步分拆把非线性问题拆为两个\textbf{线性 Sylvester 子问题},每步可解。顺序不可交换:先压 $\Lambda^{s}_{\;r}$ 再压 $\Lambda^{r}_{\;s}$ 与反过来差 $O(\varepsilon^2)$。
+
+\subsubsection*{优化算法步骤}
+
+\noindent\textbf{(1) 取初值}\quad 使用 $\Jg(\vec z)$ 在 $\vec z(t_0)$ 处的瞬时左右特征向量作零阶基:
+\begin{equation}
+\vec a_i^{(0)}=\vec v_i(\vec z(t_0)),\qquad \vec b^{\,i\,(0)}=\vec u^{\,i}(\vec z(t_0)).
+\end{equation}
+验证三组关系:
+\begin{equation}
+\Jg\vec v_i=\lambda_i\vec v_i,\qquad \vec u^{\,i}\Jg=\lambda_i\vec u^{\,i},\qquad \vec u^{\,i}\cdot\vec v_j=\delta^{i}_{\;j}\quad(\text{双正交性}).
+\end{equation}
+对应的耦合矩阵零阶值:
+\begin{equation}
+\Lambda^{i\,(0)}_{\;j}=\dot{\vec b}^{\,i\,(0)}\cdot\vec a_j^{\,(0)}+\vec b^{\,i\,(0)}\cdot\Jg\cdot\vec a_j^{\,(0)}.
+\end{equation}
+
+\noindent\textbf{(2) 动力学源项 / 旋转补偿项处理}\quad 在特征结构下实现瞬时对角化:
+\begin{equation}
+\Jg\cdot\vec a_i=\vec a_i\cdot\Lambda\;\Longrightarrow\;\vec b^{\,i}\cdot\Jg\cdot\vec a_j=\lambda_j\delta^{j}_{\;i},
+\end{equation}
+线性下 $\diff{\vec b^{\,i}}{t}=0$。
+
+\subsubsection*{(3) 第一步精化:调整右快基与双正交导出 $\mu=-\tau$}
+
+调整右快基,混入慢方向小修正:
+\begin{equation}
+\tilde{\vec a}_r=\vec a_r+\vec a_{s'}\tau^{s'}_{\;r},\qquad \tau\in\R^{(N-M)\times M},
+\end{equation}
+其余三组基的扰动由双正交约束 $\tilde{\vec b}^{\,i}\cdot\tilde{\vec a}_j=\delta^{i}_{\;j}$ 唯一决定。设
+\begin{equation}
+\tilde{\vec a}_s=\vec a_s,\qquad \tilde{\vec b}^{\,r}=\vec b^{\,r},\qquad \tilde{\vec b}^{\,s}=\vec b^{\,s}+\mu^{s}_{\;r'}\vec b^{\,r'},
+\end{equation}
+验证四种 $(i,j)$ 组合:
+\begin{align}
+(r,r'):\ &\vec b^{\,r}\cdot(\vec a_{r'}+\vec a_{s'}\tau^{s'}_{\;r'})=\delta^{r}_{\;r'}+0=\delta^{r}_{\;r'}\ \checkmark\\
+(r,s):\ &\vec b^{\,r}\cdot\vec a_s=0\ \checkmark\\
+(s,s'):\ &(\vec b^{\,s}+\mu^{s}_{\;r'}\vec b^{\,r'})\cdot\vec a_{s'}=\delta^{s}_{\;s'}+0=\delta^{s}_{\;s'}\ \checkmark\\
+(s,r):\ &(\vec b^{\,s}+\mu^{s}_{\;r'}\vec b^{\,r'})\cdot(\vec a_r+\vec a_{s'}\tau^{s'}_{\;r})=\tau^{s}_{\;r}+\mu^{s}_{\;r}\overset{!}{=}0.
+\end{align}
+由第四式得
+\begin{equation}
+\boxed{\;\mu=-\tau\;}
+\end{equation}
+故扰动完全由单一参数 $\tau$ 控制:
+\begin{equation}
+\tilde{\vec a}_r=\vec a_r+\vec a_s\tau,\qquad \tilde{\vec b}^{\,s}=\vec b^{\,s}-\tau\vec b^{\,r}.
+\end{equation}
+快矩阵形式:
+\begin{equation}
+A_r=[\vec a_1,\dots,\vec a_M]\ (\text{快基矢矩阵}),\qquad A_s=[\vec a_{M+1},\dots,\vec a_N]\ (\text{慢基矢矩阵}),
+\end{equation}
+\begin{equation}
+\boxed{\;A_r\leftarrow A_r+A_s\tau\;}\qquad \widetilde B^{s}=B^{s}-\tau B^{r}.
+\end{equation}
+
+\subsubsection*{(4) 矩阵层级统一参数化:块下三角变换}
+
+定义块下三角变换矩阵
+\begin{equation}
+\widetilde A=AT_a,\qquad \widetilde B=T_bB,
+\end{equation}
+\begin{equation}
+T_a=\begin{pmatrix}I & \tau\\ 0 & I\end{pmatrix},\qquad T_b=T_a^{-1}=\begin{pmatrix}I & -\tau\\ 0 & I\end{pmatrix}.
+\end{equation}
+按快慢分块
+\begin{equation}
+A\triangleq(A_s,A_r),\qquad B\triangleq\begin{bmatrix}B^s\\ B^r\end{bmatrix},\qquad \Lambda=B\Jg A.
+\end{equation}
+双正交自动保持:
+\begin{equation}
+\widetilde B\widetilde A=T_b(BA)T_a=T_bT_a=I.
+\end{equation}
+
+\subsubsection*{Sylvester 方程的矩阵层级导出}
+
+新耦合矩阵
+\begin{align}
+\widetilde\Lambda&=\dot{\widetilde B}\widetilde A+\widetilde B\Jg\widetilde A\nonumber\\
+&=(\dot T_bB+T_b\dot B)AT_a+T_bB\Jg AT_a\nonumber\\
+&=\dot T_b(BA)T_a+T_b(\dot BA+B\Jg A)T_a,
+\end{align}
+用 $BA=I$ 与 $\Lambda=\dot BA+B\Jg A$,得\textbf{精化变换的精确矩阵公式}:
+\begin{equation}
+\boxed{\;\widetilde\Lambda=T_b\Lambda T_a+\dot T_bT_a\;}
+\end{equation}
+
+\noindent 按块展开。先算 $\Lambda T_a$:
+\begin{equation}
+\Lambda T_a=\begin{pmatrix}\Lambda^{s}_{\;s} & \Lambda^{s}_{\;s}\tau+\Lambda^{s}_{\;r}\\ \Lambda^{r}_{\;s} & \Lambda^{r}_{\;s}\tau+\Lambda^{r}_{\;r}\end{pmatrix},
+\end{equation}
+再左乘 $T_b$:
+\begin{equation}
+T_b\Lambda T_a=\begin{pmatrix}\Lambda^{s}_{\;s}-\tau\Lambda^{r}_{\;s} & \Lambda^{s}_{\;s}\tau+\Lambda^{s}_{\;r}-\tau\Lambda^{r}_{\;s}\tau-\tau\Lambda^{r}_{\;r}\\[2pt] \Lambda^{r}_{\;s} & \Lambda^{r}_{\;s}\tau+\Lambda^{r}_{\;r}\end{pmatrix}.
+\end{equation}
+基矢转动项:
+\begin{equation}
+\dot T_b=\begin{pmatrix}0 & -\dot\tau\\ 0 & 0\end{pmatrix},\qquad \dot T_bT_a=\begin{pmatrix}0 & -\dot\tau\\ 0 & 0\end{pmatrix}.
+\end{equation}
+合并 $\widetilde\Lambda=T_b\Lambda T_a+\dot T_bT_a$,得四个分块:
+\begin{align}
+\widetilde\Lambda^{s}_{\;s}&=\Lambda^{s}_{\;s}-\tau\Lambda^{r}_{\;s},\\
+\widetilde\Lambda^{s}_{\;r}&=\Lambda^{s}_{\;r}+\Lambda^{s}_{\;s}\tau-\tau\Lambda^{r}_{\;r}-\tau\Lambda^{r}_{\;s}\tau-\dot\tau,\\
+\widetilde\Lambda^{r}_{\;s}&=\Lambda^{r}_{\;s},\\
+\widetilde\Lambda^{r}_{\;r}&=\Lambda^{r}_{\;r}+\Lambda^{r}_{\;s}\tau.
+\end{align}
+
+\noindent\textbf{目标块 $\widetilde\Lambda^{s}_{\;r}$。}线性化(舍 $O(\tau^2)$ 的 $\tau\Lambda^{r}_{\;s}\tau$):
+\begin{equation}
+\widetilde\Lambda^{s}_{\;r}=\Lambda^{s}_{\;r}+\Lambda^{s}_{\;s}\tau-\tau\Lambda^{r}_{\;r}-\dot\tau.
+\end{equation}
+要求 $\widetilde\Lambda^{s}_{\;r}=0$,准稳态近似舍 $\dot\tau$($\tau$ 沿慢流形缓慢演化),即得 \textbf{Sylvester 方程}:
+\begin{equation}
+\boxed{\;\Lambda^{s}_{\;s}\tau-\tau\Lambda^{r}_{\;r}=-\Lambda^{s}_{\;r}\;}
+\qquad\text{或等价}\qquad
+\boxed{\;\tau\Lambda^{r}_{\;r}-\Lambda^{s}_{\;s}\tau=\Lambda^{s}_{\;r}\;}
+\end{equation}
+
+\textbf{两项的代数来源。}
+\begin{itemize}[leftmargin=2em]
+\item $\Lambda^{s}_{\;s}\tau$:右基修正直接把 $\vec a_s$ 方向混入快基,$\vec b^{\,s}$ 与 $\vec a_s$ 之间通过 $\Jg$ 的耦合即 $\Lambda^{s}_{\;s}$;
+\item $-\tau\Lambda^{r}_{\;r}$:双正交约束逼出 $\tilde{\vec b}^{\,s}=\vec b^{\,s}-\tau\vec b^{\,r}$ 引入 $\vec b^{\,r}$ 分量,与 $\vec a_r$ 通过 $\Jg$ 耦合即 $\Lambda^{r}_{\;r}$。
+\end{itemize}
+双正交约束强行把右基扰动 $\tau$ 与左基扰动 $-\tau$ 绑定,导致目标块的线性化修正天然带有 $\Lambda^{s}_{\;s}\tau$ 和 $\tau\Lambda^{r}_{\;r}$ 两项——这是 Sylvester 结构的几何根源。
+
+\subsubsection*{可解性与解的尺度}
+
+Sylvester 方程 $\tau A-B\tau=C$ 有唯一解 $\Longleftrightarrow$
+\begin{equation}
+\sigma(\Lambda^{r}_{\;r})\cap\sigma(\Lambda^{s}_{\;s})=\emptyset,
+\end{equation}
+即快特征值 $\{\lambda_1,\dots,\lambda_M\}$ 与慢特征值 $\{\lambda_{M+1},\dots,\lambda_N\}$ 不重叠。\textbf{这恰好是快慢分离条件}——CSP 适用性与 Sylvester 方程可解性互为充要。
+
+由算子理论,解的范数估计为
+\begin{equation}
+\|\tau\|\lesssim\frac{\|\Lambda^{s}_{\;r}\|}{\mathrm{sep}(\Lambda^{r}_{\;r},\Lambda^{s}_{\;s})}\sim\varepsilon\,\|\Lambda^{s}_{\;r}\|=O(\varepsilon),
+\end{equation}
+即修正量本身是 $\varepsilon$ 小量,基矢只被轻微扭动。
+
+\subsubsection*{(5) 第二步精化:对偶 Sylvester 方程}
+
+调左快基 $\tilde{\vec b}^{\,r}=\vec b^{\,r}+\sigma\vec b^{\,s}$,双正交逼出 $\tilde{\vec a}_s=\vec a_s-\vec a_r\sigma$,对应块上三角变换
+\begin{equation}
+S_a=\begin{pmatrix}I & 0\\ -\sigma & I\end{pmatrix},\qquad S_b=S_a^{-1}=\begin{pmatrix}I & 0\\ \sigma & I\end{pmatrix}.
+\end{equation}
+平行的矩阵推导,目标块的线性化:
+\begin{equation}
+\widetilde{\widetilde\Lambda}^{r}_{\;s}=\Lambda^{r}_{\;s}+\sigma\Lambda^{s}_{\;s}-\Lambda^{r}_{\;r}\sigma+\dot\sigma.
+\end{equation}
+要求 $\widetilde{\widetilde\Lambda}^{r}_{\;s}=0$,舍 $\dot\sigma$,得\textbf{对偶 Sylvester 方程}:
+\begin{equation}
+\boxed{\;\Lambda^{r}_{\;r}\sigma-\sigma\Lambda^{s}_{\;s}=-\Lambda^{r}_{\;s}\;}
+\end{equation}
+解的尺度 $\|\sigma\|\sim\varepsilon\|\Lambda^{r}_{\;s}\|=O(\varepsilon)$。
+
+\subsubsection*{精度统计:为何第二步可用未更新的 $\Lambda$}
+
+严格地,第二步 Sylvester 方程的系数应取第一步更新后的 $\widetilde\Lambda^{r}_{\;r},\widetilde\Lambda^{s}_{\;s}$:
+\begin{equation}
+(\Lambda^{r}_{\;r}+\Lambda^{r}_{\;s}\tau)\sigma-\sigma(\Lambda^{s}_{\;s}-\tau\Lambda^{r}_{\;s})=\Lambda^{r}_{\;s},
+\end{equation}
+展开:
+\begin{equation}
+\Lambda^{r}_{\;r}\sigma-\sigma\Lambda^{s}_{\;s}+\underbrace{\Lambda^{r}_{\;s}\tau\sigma+\sigma\tau\Lambda^{r}_{\;s}}_{O(\varepsilon^2)}=\Lambda^{r}_{\;s}.
+\end{equation}
+由 $\|\tau\|,\|\sigma\|\sim O(\varepsilon)$,修正项
+\begin{equation}
+\|\Lambda^{r}_{\;s}\tau\sigma\|\lesssim\|\Lambda^{r}_{\;s}\|\cdot\|\tau\|\cdot\|\sigma\|\sim O(1)\cdot O(\varepsilon)\cdot O(\varepsilon)=O(\varepsilon^2),
+\end{equation}
+比主导项 $\|\Lambda^{r}_{\;r}\sigma\|\sim O(\varepsilon)$ 小一个 $\varepsilon$ 量级。故用未更新的 $\Lambda$ 引入的误差 $\delta\sigma\sim O(\varepsilon^2)$,落在单轮精化目标精度 $O(\varepsilon)$ 内,可忽略。\textbf{核心:$\tau,\sigma$ 都是一阶 $O(\varepsilon)$,它们的乘积 $\sigma\tau$ 自动是二阶 $O(\varepsilon^2)$}。
+
+\subsubsection*{一轮精化的副产品}
+
+矩阵推导自然给出所有四块的扰动:
+\begin{center}
+\begin{tabular}{lll}
+\hline
+块 & 精化前 & 精化后(线性近似)\\
+\hline
+$\Lambda^{s}_{\;s}$ & $O(1)$ & $\Lambda^{s}_{\;s}-\tau\Lambda^{r}_{\;s}$($O(\varepsilon)$ 修正)\\
+$\Lambda^{s}_{\;r}$ & $O(1)$ & $0$(精化目标 $\checkmark$)\\
+$\Lambda^{r}_{\;s}$ & $O(1)$ & $\Lambda^{r}_{\;s}$(\textbf{第一步不变!})\\
+$\Lambda^{r}_{\;r}$ & $O(1)$ & $\Lambda^{r}_{\;r}+\Lambda^{r}_{\;s}\tau$($O(\varepsilon)$ 修正)\\
+\hline
+\end{tabular}
+\end{center}
+$\widetilde\Lambda^{r}_{\;s}=\Lambda^{r}_{\;s}$ 完全不变——\textbf{这就是必须有第二步的原因}。对角块只受 $O(\varepsilon)$ 修正,快慢分离结构保持。
+
+\subsubsection*{几何收敛}
+
+一轮(两步)精化后反对角块至 $O(\varepsilon)$,继续迭代:
+\begin{center}
+\begin{tabular}{cccc}
+\hline
+轮数 $k$ & $\|\Lambda^{s}_{\;r}\|$ & $\|\Lambda^{r}_{\;s}\|$ & 慢流形精度\\
+\hline
+$0$ & $O(1)$ & $O(1)$ & 粗糙\\
+$1$ & $O(\varepsilon)$ & $O(\varepsilon)$ & $O(\varepsilon)$\\
+$2$ & $O(\varepsilon^2)$ & $O(\varepsilon^2)$ & $O(\varepsilon^2)$\\
+$k$ & $O(\varepsilon^k)$ & $O(\varepsilon^k)$ & $O(\varepsilon^k)$\\
+\hline
+\end{tabular}
+\end{center}
+几何级数收敛,速度由 $\varepsilon$ 决定。第 $k$ 轮的精化误差 $\sim O(\varepsilon^{3k+2})\ll O(\varepsilon^{k+1})$,完全够用——多轮迭代的精度统计自洽。
+
+\subsubsection*{计算代价的层级递增}
+
+每轮精化需 $\dot{\vec b}^{\,i}$,等价于对 $\Jg$ 求时间导数:
+\begin{equation}
+\dot\Jg=\diff{}{t}\pdiff{\vec g}{\vec z}=\pdiff{^2\vec g}{\vec z^2}\cdot\dot{\vec z}=H_g(\vec z)\cdot\vec g(\vec z),
+\end{equation}
+涉及 \textbf{Hessian $H_g$}。第 $k$ 轮需 $\vec g$ 的 $k+1$ 阶导数:
+\begin{itemize}[leftmargin=2em]
+\item 第一轮:Jacobian $\Jg$(一阶);
+\item 第二轮:Hessian $H_g$(二阶,$N^3$ 分量,存储计算都重);
+\item 第三轮以上:实际工程几乎不可行。
+\end{itemize}
+故\textbf{工程实践通常只做零阶(瞬时 Jacobian 特征分解)或一阶(一轮精化)},换取 $O(\varepsilon)$ 或 $O(\varepsilon^2)$ 精度。
+
+\subsubsection*{线性 vs 非线性 CSP 对照}
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+性质 & 线性 $\vec g=C\vec z$ & 非线性 $\vec g(\vec z)$\\
+\hline
+Jacobian & 常矩阵 $C$ & 局部 $\Jg(\vec z(t))$\\
+基矢 $\{\vec a_i\}$ & 常向量 & 随 $\vec z(t)$ 变化\\
+$\dot{\vec b}^{\,i}$ & 零 & 非零,进入 $\Lambda^{i}_{\;j}$\\
+$\Lambda^{i}_{\;j}$ 结构 & 严格块对角 & 一般 $O(1)$ 串话\\
+精化次数 & 零(一次性精确) & 多轮,每轮一个 $\varepsilon$ 量级\\
+慢流形精度 & 精确 & $O(\varepsilon^k)$,$k$ 是精化轮数\\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent\textbf{爆炸性行为警告}:系统中若有 $\Real(\lambda)>0$ 的快增长模式(典型如化学着火),慢流形 SIM 展开需多个小参数 $\varepsilon_1,\varepsilon_2,\dots,\varepsilon_N$ 分别刻画不同方向的逃逸率。稳定快模"塌缩到 SIM",不稳定快模"从 SIM 逃逸",几何上是不同的过程。
+$\Real(\lambda)\geq 0$ 主导 $f^{\,r}$;$\varepsilon_1,\varepsilon_2,\dots,\varepsilon_N$ 刻画慢流形 SIM(非稳态)。
+
+\subsection{慢/快流形维数判别}
+$M$ 取使快模式累积误差 $\delta\vec z^{\,i}_{fast}<\delta\vec z^{\,i}_{error}$ 的最大整数:
+\begin{equation}
+\max\bigl\{M\in\{0,1,\dots,N-1\}\bigr\}:\quad
+\delta z^{\,i}_{fast}\approx\tau^{M+1}\sum_{k=1}^{M}|\vec a_k^{\,i}\,f^{\,k}|<\delta z^{\,i}_{error}
+\label{粗略估计方程}
+\end{equation}
+$i=1,2, \cdots, N,\ a^i_r$为第r个右基矢量第i个分量。由于$A_r=\begin{pmatrix}\vec a_1,\cdots,\vec a_M \end{pmatrix}, \ \vec f^r =\begin{pmatrix}f^1, \cdots, f^M \end{pmatrix}^{\top}$是时间的函数会随时间演化而改变，根据公式~\eqref{矩阵振幅方程}可知：
+\begin{equation}
+	\vec f^r(t^n+\tau)=e^{\tau\Lambda_r}\vec f^r_0(t^n)
+	\label{解析振幅方程}
+\end{equation}
+考虑$\Real(\lambda)<0$,对比~\eqref{粗略估计方程}，绝对值求和项$|\sum a^i_kf^k|=C_0$在$\tau^{M+1}$是大于呈衰减态势的$\vec f^r$的。将~\eqref{解析振幅方程}代入，
+具体地,$\delta\vec z^{\,i}_{fast}=\int_{0}^{\tau^{M+1}}\!A_r\cdot\vec f^{\,r}(t)\,\rmd t=\begin{pmatrix}\delta{z_{fast}}^1,\cdots,\delta{z_{fast}}^M\end{pmatrix}$，有：
+\begin{equation}
+	\delta z^{\,i}_{fast}=\int_{0}^{\tau_{M+1}}\sum_{k=1}^{M}a_r^if_0^r(t^n)e^{\lambda_rt}\,\rmd t
+\end{equation}
+因此~\eqref{粗略估计方程}改写为,其中$r=1,\cdots, M$：
+\begin{equation}
+	\max\bigl\{M\in\{0,1,\dots,N-1\}\bigr\}:\quad \delta z^{\,i}_{fast}=\sum_{r}|a_r^if^r(t^n)\frac{e^{\lambda^r\tau^{M+1}}-1}{\lambda^r}|<\delta z^{\,i}_{error}
+\end{equation}
+
+
+因不同状态分量量纲差异巨大,$\|\delta\vec z_{fast}\|$ 直接相加无意义，考虑每一个分量的阈值才有意义。
+
+\subsection{TSR:Rayleigh 商表达}
+
+切向量与变分方程:
+\begin{equation}
+\vec y\;\overset{\Delta}{=}\;\lim_{|\varepsilon|\to 0}\frac{\vec z_2(t)-\vec z_1(t)}{|\varepsilon|}\in T_{\vec z},\quad
+\vec g(\vec z_2)=\vec g(\vec z_1)+\Jg(\vec z_1)(\vec z_2-\vec z_1)+O(|\varepsilon|^2),
+\end{equation}
+\begin{equation}
+\boxed{\;\dot{\vec y}=\Jg\cdot\vec y,\quad \vec y(0)=\vec 1\;}\quad\text{(变分方程)}.
+\end{equation}
+拉伸率 $y=|\vec y|$ 满足 $\dfrac{d y^2}{dt}=2\vec y\cdot\Jg\cdot\vec y$,定义 \textbf{Rayleigh 商}
+\[
+W_{\hat u}\;\overset{\Delta}{=}\;\hat u\cdot\Jg\cdot\hat u,\qquad \hat u=\vec y/y.
+\]
+$W_{\hat u}>0$ 时向量场被拉伸,系统失稳;当 $\hat u=\vec v_i$ 时 $W_{\hat u}=\lambda_i$,即拉伸率退化为特征值。
+
+\subsubsection*{TSR 定义}
+\begin{equation}
+\boxed{\;
+\text{TSR}\;\overset{\Delta}{=}\;\omega_{\hat\tau}=\hat\tau\cdot\Jg\cdot\hat\tau,\quad
+\hat\tau=\frac{\vec g(\vec z)}{|\vec g(\vec z)|}\;
+}
+\end{equation}
+$g=|\vec g(\vec z)|$,利用 $\vec g=\dfrac{1}{g}\sum_i\vec a_i f^{\,i}$,$\Jg=A\Lambda B$:
+\begin{equation}
+\omega_{\hat\tau}=\sum_i\lambda_i\,\frac{f^{\,i}(\vec g\cdot\vec a_i)}{g^{2}}
+=\sum_i W_i\lambda_i,\quad
+W_i=\frac{f^{\,i}(\vec g\cdot\vec a_i)}{g^{2}}=\frac{f^{\,i}(\hat\tau\cdot\vec a_i)}{g}.\tag{$\bigstar$}
+\end{equation}
+TSR 由三部分耦合构成:
+\begin{itemize}[leftmargin=2em]
+    \item $\lambda_i$:模式自身时间尺度;
+    \item $f^{\,i}$:模式活跃度，CSP约化快模式 （$\lambda 大 f^i\approx 0$） 不污染 TSR,自动识别慢流形时间尺度;
+    \item $\hat\tau\cdot\vec a_i$:右基切空间向量与轨迹方向 $\hat\tau$(或是向量场$\vec g$) 的共线度(正交切向演化贡献小)。
+\end{itemize}
+权重 $W_i$:$W_i\geq 0$ 激发态,$W_i<0$ 耗散。
+
+考虑时间尺度刚性
+\begin{align}
+\tau_{chem}\;\overset{\Delta}{=}\;\frac{1}{|\omega_{\hat{\tau}}|}\Rightarrow\text{可以作为自适应时间步长的选择} \nonumber\\
+\mu\sim\Big|\frac{\lambda_{max}}{\lambda_{min}}\Big|\Rightarrow\text{反映系统刚性，即特征值的分布} \nonumber
+\end{align}
+TSR识别的四个维度：符号 / 量级 / 演化 / 权重
+
+\subsection{TSR 空间拆分}
+
+\noindent\textbf{Assumption.}\quad 自由基:$\vec b^{\,i}=\vec a_i,\vec g\cdot \vec a_i=\vec b^i \cdot \vec g=f^i$,即 $\Jg$ 为正规矩阵($\Jg^\top\Jg=\Jg\Jg^\top$),左右特征向量重合,双正交退化为正交归一。此时
+\begin{equation}
+\vec g\cdot\vec a_i=\sum_{j}f^{\,j}(\vec a_j\cdot\vec a_i)=f^{\,i},
+\end{equation}
+代回 $(\bigstar)$:
+\begin{equation}
+W_i=\frac{f^{\,i}(\vec g\cdot\vec a_i)}{g^{2}}=\Big(\frac{f^{\,i}}{g}\Big)^{2}.
+\end{equation}
+TSR 简化为
+\begin{equation}
+\omega_{\hat\tau}=\sum_{i=1}^{N}\Big(\frac{f^{\,i}}{g}\Big)^{2}\lambda_i.
+\end{equation}
+
+\noindent\textbf{快慢拆分}\quad 记 $r=1,\dots,L$ 为快模式,$s=K,\dots,N$ 为慢模式,$a=L+1,\cdots ,K-1$:
+\begin{equation}
+\omega_{\hat\tau}=\sum_{r=1}^{L}\Big(\frac{f^{\,r}}{g}\Big)^{2}\lambda_r+\sum_{a=L+1}^{K-1}\Big(\frac{f^{\,a}}{g}\Big)^{2}\lambda_a+\sum_{s=K}^{N}\Big(\frac{f^{\,s}}{g}\Big)^{2}\lambda_s
+\end{equation}
+其中不同模式下的特征值按照降序排列，即$|\lambda_1|>\cdots>|\lambda_N|$。
+
+\noindent\textbf{活跃模式主导情形}\quad 当快模式塌缩到慢流形上 $f^{\,r}\approx 0$,且在慢流形上的较为活跃的模式保留但是更慢的模式$f^s\approx0$考虑是冻结的。
+引入小参数，即谱间隙：
+\begin{align}
+\varepsilon_s &=\frac{|\lambda_{L+1}|}{|\lambda_{L}|}\ll 1\quad(\text{小参数})\\
+\varepsilon_r &=\frac{|\lambda_{K}|}{|\lambda_{K-1}|}\ll 1\quad(\text{小参数})\\
+\end{align}
+约化的慢流形 TSR(只保留慢模式 + 扣除零空间 $N_0$ 维守恒方向):
+\begin{equation}
+\omega_{TSR}=\sum_{a=L+1}^{K-1}\Big|\frac{f^{\,a}}{g}\Big|^{2}\lambda_a
+\end{equation}
+
+\noindent\textbf{切空间正交分解}\quad
+\begin{equation}
+\boxed{\;T_{\vec z}=\mathcal F_{TSR}\oplus \mathcal A_{TSR}\oplus \mathcal S_{TSR}\oplus\vec 0\;}
+\end{equation}
+四个子空间含义:
+\begin{itemize}[leftmargin=2em]
+\item $\mathcal F_{TSR}$:被吸收平衡的快约束空间;
+\item $\mathcal A_{TSR}$:活跃慢演化空间(积分方向);
+\item $\mathcal S_{TSR}$:被冻结/参考的稳态空间;
+\item $\vec 0$:零特征空间(能量、质量、动量守恒方向)。
+\end{itemize}
+对应 CSP 框架下,$\mathcal F_{CSP}\,\text{对应}\,\mathcal F_{TSR},\ \mathcal S_{CSP}\,\text{对应}\,\mathcal A_{TSR}\oplus \mathcal S_{TSR}$ 。
+
+\noindent\textbf{TSR-G-Scheme 问题:慢空间 vs 快空间}\quad 两类约化对应两种摄动:
+\begin{itemize}[leftmargin=2em]
+\item \textbf{慢空间}:冻结 $S_{TSR}=S_0$ 即得
+\begin{equation}
+T_{\vec z}\big|_{S=S_0}=\mathcal F_{TSR}\oplus \mathcal A_{TSR}\subset T_{\vec z},
+\end{equation}
+二尺度问题中 $\mathcal F_{TSR}$ 为约束、积分 $\mathcal A_{TSR}$,对应\textbf{奇异摄动};
+\item \textbf{慢空间}:取 $f^{\,r}=0$(快模式吸收到平衡)即得
+\begin{equation}
+T_{\vec z}\big|_{F=F_0}=\mathcal A_{TSR}\oplus \mathcal S_{TSR}\subset T_{\vec z},
+\end{equation}
+$\mathcal F_{TSR}$ 被吸收平衡,$\mathcal S_{TSR}$ 作慢参数,积分 $\mathcal A_{TSR}$,对应\textbf{正则摄动}。
+\end{itemize}
+合起来:
+\begin{equation}
+\begin{cases}T_{\vec z}\big|_{S=S_0}\subset T_{\vec z}\\[2pt]
+T_{\vec z}\big|_{F=F_0}\subset T_{\vec z}\end{cases}
+\end{equation}
+
+\subsection{PDE 形式与 Damköhler 数}
+
+\noindent\textbf{空间非均匀情形}\quad 在化学源项之外加入传输算子(对流、扩散),状态方程变为
+\begin{equation}
+\diff{\vec z(t)}{t}=\underbrace{\mathcal L_{\vec x}(\vec z(\vec x,t))}_{\text{对流、扩散}\dots}+\underbrace{\vec g(\vec z(\vec x,t))}_{\text{化学源项}}.
+\end{equation}
+
+\noindent\textbf{Assumption(Damköhler 数大):}
+\begin{equation}
+\mathrm{Da}=\frac{\tau_f}{(\tau_{chem})_{\min}}\gg 1\;\Longrightarrow\;\text{最快尺度来自化学反应,仍在 $N$ 维化学空间做 CSP}\nonumber						
+\end{equation}
+反之 $\mathrm{Da}\ll 1$ 即\textbf{慢化学场景}(强对流、平衡于反应),上述假设失效。
+
+\medskip
+\noindent\textbf{结构保持}\quad $\mathcal L_{\vec x}(\vec z(\vec x,t))$ 仅改变 $f^{\,i}$ 轨迹,演化的 $A,B$ 结构不发生改变,仍可用局部 Jacobian
+\begin{equation}
+\Jg=\pdiff{\vec g}{\vec z}
+\end{equation}
+做瞬时谱分解。
+
+\medskip
+\noindent\textbf{① 模态展开。}\quad 把传输 + 化学投影到 CSP 基矢上:
+\begin{equation}
+\pdiff{\vec z}{t}=\mathcal L_{\vec x}(\vec z)+\vec g(\vec z)=\sum_{i=1}^{N}\vec a_i(\vec z)\,h^{\,i}(\vec z),
+\end{equation}
+其中振幅
+\begin{align}
+h^{\,i}&=\underbrace{\vec b^{\,i}\cdot\mathcal L_{\vec x}(\vec z)}_{\text{传输}}+\underbrace{\vec b^{\,i}\cdot\vec g(\vec z)}_{\text{化学}}\nonumber\\
+&=\sum_{j=1}^{N}(\vec b^{\,i}\cdot\vec e_j)\,L^{j}+\sum_{k=1}^{2N_r}(\vec b^{\,i}\cdot\vec S_k)\,R^{k}.
+\end{align}
+
+\noindent\textbf{符号说明:}
+\begin{itemize}[leftmargin=2em]
+\item $L^{n}$:传输算子作用在 $N$ 个状态分量上的值;
+\item $\vec S_k$:第 $k$ 个反应的化学计量向量;
+\item $R^{k}$:反应速度,$2N_r$ 包含正逆反应。
+\end{itemize}
+
+\medskip
+\noindent\textbf{✱ 约化慢流形的两种情形:}
+\begin{itemize}[leftmargin=2em]
+\item \textbf{(a) 耗尽(exhausted)}:模态振幅 $h^{\,i}\approx 0$,传输与化学贡献相互抵消:
+\begin{equation}
+\vec b^{\,i}\cdot\mathcal L_{\vec x}+\vec b^{\,i}\cdot\vec g\approx 0\quad\Longleftrightarrow\quad\vec b^{\,i}\cdot\mathcal L_{\vec x}\sim-\vec b^{\,i}\cdot\vec g;
+\end{equation}
+\item \textbf{(b) 冻结(frozen)}:$\vec b^{\,i}\cdot\mathcal L_{\vec x}$ 与 $\vec b^{\,i}\cdot\vec g$ \textbf{每一项都很小},几乎无驱动,
+\begin{equation}
+\tau_{chem}\ll\tau_f,
+\end{equation}
+该模态可直接舍弃不影响精度。
+\end{itemize}
+
+\medskip
+\noindent\textbf{两类判据的区别:}
+\begin{equation}
+\underbrace{\Big|h^{\,i}\Big|=\Big|\sum\text{项}\Big|=0}_{\text{耗尽:整体求和后为零(相消)}}\;\;\text{vs.}\;\;\underbrace{\sum\big|\text{项}\big|=0}_{\text{冻结:每一项绝对值都小}}\quad\Rightarrow\quad\text{不同判据}.
+\end{equation}
+
+\medskip
+\noindent\textbf{$T_{\vec z}$ 空间维数:冻结不产生约束方程。}\quad 记
+\begin{itemize}[leftmargin=2em]
+\item $N_d$:总冻结模式数;
+\item $N_d^{fast}$:属于\textbf{快模式}的冻结数;
+\item $M$:快模式总数。
+\end{itemize}
+则
+\begin{itemize}
+\item $\text{有效维数}\;=N-N_d$,
+\item $\text{约束方程数}\;=M-N_d^{fast}\quad(N_d^{fast}\text{即冻结的快模式数,提供代数约束})$
+\item $\boxed{\;\text{慢动力学 active 维数}\;=\;(N-N_d)-(M-N_d^{fast})\;}$
+\end{itemize}
+即从切空间维数 $N$ 中扣除\textbf{冻结模式 $N_d$ 维}与\textbf{被耗尽的快模式约束 $M-N_d^{fast}$ 维},余下的就是真正描述慢动力学的 active 维度。
+
+\subsubsection*{PDE 形式 TSR}
+切向量
+\begin{equation}
+\hat\tau_{pde}=\frac{\mathcal L(\vec z)+\vec g(\vec z)}{|\mathcal L+\vec g|}=\frac{1}{|\mathcal L+\vec g|}\sum_{i=1}^{N}\vec a_i h^{\,i}.
+\end{equation}
+
+\noindent\textbf{Rayleigh 商}\quad 这里 $\Jg$ 仍指\textbf{化学源项的 Jacobian}($=\partial\vec g/\partial\vec z$),而\textbf{不}包含传输算子的导数 —— 这是 PDE 推广中容易混淆的点。
+\begin{equation}
+\boxed{\;\omega_{\hat\tau_{pde}}=\hat\tau_{pde}\cdot\Jg\cdot\hat\tau_{pde}=\sum_{i=1}^{N}W_{i,\,pde}\,\lambda_i\;}\quad(\bigstar\;\Jg\text{ 仍为化学源项的 Jacobian})
+\end{equation}
+
+\noindent 权重 $W_{i,\,pde}$ 的具体形式:
+\begin{equation}
+W_{i,\,pde}=\frac{h^{\,i}}{|\mathcal L+\vec g|}(\hat\tau_{pde}\cdot\vec a_i)
+=\frac{h^{\,i}}{|\mathcal L+\vec g|}\sum_{k=1}^{N}\frac{h^{\,k}}{|\mathcal L+\vec g|}(\vec a_k\cdot\vec a_i).
+\end{equation}
+\emph{包含传输影响、传输-化学耦合。}
+
+\medskip
+\noindent\textbf{三种典型情形:}
+\begin{itemize}[leftmargin=2em]
+    \item $\mathrm{Da}\gg 1$:\textbf{反应主导},$\,$$\omega_{\hat\tau_{pde}}\sim \omega_{\hat\tau}$;
+    \item $\mathrm{Da}\ll 1$:\textbf{传输主导},$W_{\hat\tau_{pde}}\leq 0$,抑制点火;
+    \item \textbf{湍流}:$|\mathcal L|\gg|\vec g|$,$\hat\tau_{pde}$ 与 $\vec a_i$ 不共线。
+\end{itemize}
+
+%========================================================
+\section{模态量贡献的指数拆解}
+
+\begin{equation}
+	\left.
+	\begin{aligned}
+		\dot{\vec{z}} &= \mathcal{L}_{\vec{x}}(\vec{z}) + \vec{g}(\vec{z}) \quad \text{(pde)} \\
+		\dot{\vec{z}} &= \vec{g}(\vec{z}) \quad \text{(ode)}
+	\end{aligned}
+	\right\}
+	\quad h^i = \vec{b}^i \cdot \dot{\vec{z}},\quad \dot {\vec{z}}=\sum_{i}\vec a_ih^i
+\end{equation}
+
+
+\subsection{时间尺度参与度 TPI(Time scale Participation Index)}
+
+\emph{第 $n$ 个时间尺度 $\tau_n$ 的主要决定反应。}
+\begin{equation}
+\lambda_n=\vec b^{\,n}\Jg\vec a_n,\quad \tau_n\sim\tfrac{1}{|\lambda_n|},\quad
+\Jg=\pdiff{\vec g}{\vec z},\quad \vec g=\sum_{k=1}^{2N_r}\vec S_k R^{k},
+\end{equation}
+\[
+\Jg=\sum_{k=1}^{2N_r}\pdiff{}{\vec z}(\vec S_k R^{k}),\quad
+\lambda_n=\sum_{k=1}^{2N_r}C^{n}_{k},\quad
+C^{n}_{k}=\vec b^{\,n}\pdiff{}{\vec z}(\vec S_k R^{k})\cdot\vec a_n.
+\]
+\begin{equation}
+\boxed{\;J^{\,n}_{k}=\frac{C^{n}_{k}}{\sum_{i=1}^{2N_r}|C^{n}_{i}|},\quad
+\sum_{i=1}^{2N_r}|J^{\,n}_{i}|=1\;}
+\end{equation}
+$J_k>0\Rightarrow$ 爆炸放大;$J_k<0\Rightarrow$ 耗散衰减。
+
+\subsection{振幅参与度 API(Amplitude Participation Index)}
+
+\emph{$n$ 模态振幅 $h^{\,n}$ 主贡献过程。}
+\begin{equation}
+h^{\,n}=\vec b^{\,n}\cdot \bigl(\mathcal L_x(\vec z)+\vec g(\vec z)\bigr)
+=\sum_{j=1}^{N}b^{\,n}_{j}L_{z,j}+\sum_{k=1}^{2N_r}(\vec b^{\,n}\cdot\vec S_k)R^{k}
+\overset{\Delta}{=}\sum_{l=1}^{2N_r+N}\beta^{\,n}_{l},
+\end{equation}
+\begin{equation}
+\boxed{\;P^{\,n}_{k}=\frac{\beta^{\,n}_{k}}{\sum_{j=1}^{N+2N_r}|\beta^{\,n}_{j}|},\quad
+\sum_{k=1}^{N+2N_r}|P^{\,n}_{k}|=1\;}
+\end{equation}
+关注反应/输运项在当前点对实际向量场的贡献:
+\begin{itemize}[leftmargin=2em]
+\item \textbf{Exhausted mode}:$h^{\,n}\approx 0$,识别哪些过程互相平衡;
+\item \textbf{Active mode}:$h^{\,n}\neq 0$,哪些反应驱动演化;
+\item \textbf{Frozen mode}:$\beta^{\,n}_{k}\approx 0$,各分项都很小、几乎不动,$\tau_{chem}\ll\tau_f$,直接舍弃不影响精度,不适合用 API 分析，慢方向冻结。
+\end{itemize}
+
+\subsection{Slow / Fast Importance Index(S/FII)}
+
+\emph{某状态变量变化率 $\diff{\vec z^{\,i}}{t}$ 分别由快、慢模态中哪些状态贡献。}
+\begin{equation}
+\diff{\vec z^{\,i}}{t}=g^{i}=g^{i}_{s}+g^{i}_{r},\qquad
+g^{i}_{r}=\sum_{r=1}^{M}\vec a_r^{\,i}\,\vec b^{\,r}\cdot(\mathcal L_x(\vec z)+\vec g(\vec z)),
+\end{equation}
+\[
+g^{i}_{r}=\sum_{j=1}^{N}\sum_{r=1}^{M}\vec a_r^{\,i}\bigl(b^{r}_{j}L_{z,j}\bigr)
++\sum_{k=1}^{2N_r}\sum_{r=1}^{M}\vec a_r^{\,i}(\vec b^{\,r}\cdot\vec S_k)R^{k}
+\overset{\Delta}{=}\sum_{l=1}^{2N_r+N}\psi^{i}_{r,l},
+\]
+\[
+g^{i}_{s}=\sum_{j=1}^{N}\sum_{s=M+1}^{N}\vec a_s^{\,i}\bigl(b^{s}_{j}L_{z,j}\bigr)
++\sum_{k=1}^{2N_r}\sum_{s=M+1}^{N}\vec a_s^{\,i}(\vec b^{\,s}\cdot\vec S_k)R^{k}
+\overset{\Delta}{=}\sum_{l=1}^{2N_r+N}\psi^{i}_{s,l}.
+\]
+\textbf{慢方向近似冻结}时
+\begin{equation}
+\boxed{\;I^{i}_{s,k}=\frac{\psi^{i}_{s,k}}{\sum_{j=1}^{2N_r+N}|\psi^{i}_{s,j}|}\;}\quad\Rightarrow\;
+\text{第 }k\text{ 过程对 }\diff{\vec z^{\,i}}{t}\text{ 的慢贡献有多大},
+\end{equation}
+\begin{equation}
+\boxed{\;I^{i}_{r,k}=\frac{\psi^{i}_{r,k}}{\sum_{j=1}^{2N_r+N}|\psi^{i}_{r,j}|}\;}\quad\Rightarrow\;
+\text{第 }k\text{ 过程对 }\diff{\vec z^{\,i}}{t}\text{ 的快贡献有多大}.
+\end{equation}
+
+\subsection{TSR Participation Index(TSR-PI)}
+
+\emph{哪些模态、反应/输运过程主导 TSR。}
+\begin{equation}
+\boxed{\;V^{\omega_{\hat\tau_{pde}}}_{i}=\sign\bigl(\Real(\lambda_i)\bigr)\frac{W_{i,\,pde}|\lambda_i|}{\sum_{s=1}^{N}|W_{s,\,pde}\lambda_s|}\;}
+\end{equation}
+符号函数保留增长/衰减信息:$V^{\omega_{\hat\tau_{pde}}}_{i}>0\Rightarrow$ 第 $i$ 模态对 TSR 贡献偏增长，可以寻找主导当前$\tau_chem$的模式。结合 API 进一步得过程级贡献:
+\begin{equation}
+H^{\omega_{\hat\tau_{pde}}}_{k,n}=V^{\omega_{\hat\tau_{pde}}}_{n}\times P^{\,n}_{k},
+\end{equation}
+即 $k$ 过程通过 $n$ 模态对 TSR 的贡献。汇总:
+\[
+H^{\omega_{\hat\tau_{pde}}}_{chem}=\sum_{i=1}^{2N_r}\sum_{j=1}^{N}H^{\omega_{\hat\tau_{pde}}}_{i,j},
+\qquad
+H^{\omega_{\hat\tau_{pde}}}_{Transport}=H^{\omega_{\hat\tau_{pde}}}_{conv}+H^{\omega_{\hat\tau_{pde}}}_{diff}.
+\]
+
+
+%========================================================
+\section{使用 CSP / TSR 分析问题}
+
+在真实的的模拟仿真中，每个网格点、时间步都有：API，TPI，TSR-PI，S/FII，这会产生庞大的数据。
+\begin{itemize}[leftmargin=2em]
+	\item 找出具有相同exhausted mode数量M的时间、空间网格区域。
+	\item 	\[ M=\begin{cases} M_1: \text{准稳态}\\ M_2:  \text{冻结态}\\ M_3: \text{非平衡态}\end{cases}
+	\]
+	\item 使用$|W_{\hat\tau_{pde}}-W_{\hat\tau}|$衡量输运权重
+\end{itemize}
+
+\appendix
+\section*{符号表}
+\addcontentsline{toc}{section}{附录:符号表}
+\begin{center}
+\begin{tabular}{ll}
+\hline
+符号 & 含义\\
+\hline
+$\vec z$ & 状态向量 $[T,P,\rho,w_k,\dots]^{\mathrm T}$ \\
+$\vec g(\vec z)$ & 化学源项向量场 \\
+$\Jg=\partial\vec g/\partial\vec z$ & Jacobi 矩阵 \\
+$A,B$ & 右/左基矢矩阵,$AB=I$ \\
+$\vec a_i,\vec b^{\,i}$ & 右/左基矢,$\vec b^{\,i}\cdot\vec a_j=\delta^{i}_{\;j}$ \\
+$\Lambda=\mathrm{diag}\{\lambda_i\}$ & 特征值矩阵 \\
+$f^{\,i}=\vec b^{\,i}\cdot\vec g$ & 第 $i$ 模态振幅 \\
+$M$ & 快模式数(已耗尽模式) \\
+$\mathcal L_{\vec x}$ & 对流-扩散算子 \\
+$\hat\tau=\vec g/|\vec g|$ & 轨迹单位切向量 \\
+$\mathrm{Da}$ & Damköhler 数 \\
+$W_{\hat u}=\hat u\cdot\Jg\cdot\hat u$ & Rayleigh 商(广义拉伸率) \\
+$\mathrm{TSR}=W_{\hat\tau}$ & 切向应变率 \\
+TPI / API / S/FII / TSR-PI & 时间尺度 / 振幅 / 慢-快 / TSR 参与度指数 \\
+\hline
+\end{tabular}
+\end{center}
+
+\end{document}

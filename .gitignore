@@ -1,0 +1,32 @@
+# LaTeX build files
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*.lof
+*.lot
+*.nav
+*.snm
+*.vrb
+*.xdv
+
+# Temporary files
+*.tmp
+*.bak
+
+# Mac system files
+.DS_Store
+
+# Editor folders
+.vscode/
+.idea/
+
+# Optional: ignore generated PDF
+*.pdf
