@@ -1,4 +1,4 @@
-*Author:** Zizhen Li (李子臻)  
+*Author:** THU-vdg
 > **Date:** May 2026
 
 ## 📌 Project Overview
